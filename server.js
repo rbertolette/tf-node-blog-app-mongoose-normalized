@@ -10,23 +10,23 @@ mongoose.Promise = global.Promise;
 // config.js is where we control constants for entire
 // app like PORT and DATABASE_URL
 const { PORT, DATABASE_URL } = require("./config");
-const { Post } = require("./models");
+const { Author, BlogPost } = require("./models");
 
 const app = express();
 app.use(express.json());
 
 /**
- * Get all posts, no limit for now, as there are
+ * Get all blogposts, no limit for now, as there are too few to worry about.
  */
 app.get("/posts", (req, res) => {
-  Post.find()
-  // The next line could be uncommented to limit the number of posts returned
+  BlogPost.find()
+  // The next line could be uncommented to limit the number of blogposts returned
   //    .limit(10)
-  // success callback: for each post we got back, we'll
+  // success callback: for each blogpost we got back, we'll
   // call the `.serialize` instance method in models.js
-    .then(posts => {
+    .then(blogposts => {
       res.json({
-        posts: posts.map(post => post.serialize())
+        blogposts: blogposts.map(blogpost => blogpost.serialize())
       });
     })
     .catch(err => {
@@ -36,10 +36,10 @@ app.get("/posts", (req, res) => {
 });
 
 /**
- * Get info of one post by id
+ * Get info of one blogpost by id
  */
 app.get("/posts/:id", (req, res) => {
-  Post
+  BlogPost
     // this is a convenience method Mongoose provides for searching
     // by the object _id property
     .findById(req.params.id)
@@ -51,7 +51,7 @@ app.get("/posts/:id", (req, res) => {
 });
 
 /**
- * Insert a new post
+ * Insert a new blogpost
  */
 app.post("/posts", (req, res) => {
   const requiredFields = ["title", "author",  "content"];
@@ -76,7 +76,7 @@ app.post("/posts", (req, res) => {
 
   }
   // See models.js
-  Post.create({
+  BlogPost.create({
     title: req.body.title,
     author: {
       firstName: req.body.author.firstName,
@@ -84,7 +84,7 @@ app.post("/posts", (req, res) => {
     },
     content: req.body.content
   })
-    .then(post => res.status(201).json(post.serialize()))
+    .then(blogpost => res.status(201).json(blogpost.serialize()))
     .catch(err => {
       console.error(err);
       res.status(500).json({ message: "Internal server error" });
@@ -127,16 +127,16 @@ app.put("/posts/:id", (req, res) => {
     }
   });
 
-  Post
+  BlogPost
     // all key/value pairs in toUpdate will be updated -- that's what `$set` does
     .findByIdAndUpdate(req.params.id, { $set: toUpdate })
-    .then(post => res.status(204).end())
+    .then(blogpost => res.status(204).end())
     .catch(err => res.status(500).json({ message: "Internal server error" }));
 });
 
 app.delete("/posts/:id", (req, res) => {
-  Post.findByIdAndRemove(req.params.id)
-    .then(post => res.status(204).end())
+  BlogPost.findByIdAndRemove(req.params.id)
+    .then(blogpost => res.status(204).end())
     .catch(err => res.status(500).json({ message: "Internal server error" }));
 });
 
