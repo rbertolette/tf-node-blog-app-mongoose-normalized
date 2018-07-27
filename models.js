@@ -5,13 +5,20 @@ const mongoose = require("mongoose");
 
 // Define author schema
 const authorSchema = mongoose.Schema({
-  firstName: 'string',
-  lastName: 'string',
+  firstName: { type: String, required: true },
+  lastName: { type: String, required: true },
   userName: {
     type: 'string',
-    unique: true
+    unique: true,
+    required: true
   }
 });
+
+// authorSchema.statistic.doesUserExist = function(id){
+//   Author
+//
+// }
+
 
 // Define comment schema.
 const commentSchema = mongoose.Schema({ content: 'string' });
@@ -26,9 +33,13 @@ const commentSchema = mongoose.Schema({ content: 'string' });
 
 // Define blodPost schema, normalized with Author & Comments
 const blogPostSchema = mongoose.Schema({
-  title: 'string',
-  content: 'string',
-  author: { type: mongoose.Schema.Types.ObjectId, ref: 'Author' },
+  title: { type: String, required: true },
+  content: { type: String, required: true },
+  author: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Author' //,
+    // required: true
+  },
   comments: [commentSchema],
   // nomgo 4 has an ability to store timestamps, but to keep this compaitible
   // I'm using at Date instead
@@ -67,6 +78,23 @@ blogPostSchema.virtual("fullName").get(function() {
   return `${this.author.firstName} ${this.author.lastName}`.trim();
 });
 
+// Simalarly create a virtual fullName field for the authorSchema
+authorSchema.virtual("fullName").get(function() {
+  return `${this.firstName} ${this.lastName}`.trim();
+});
+
+
+// / this is an *instance method* which will be available on all instances
+// of the model. This method will be used to return an object that only
+// exposes *some* of the fields we want from the underlying data
+authorSchema.methods.serialize = function() {
+  return {
+    id: this._id,
+    name: this.fullName,
+    userName: this.userName,
+  };
+};
+
 
 // this is an *instance method* which will be available on all instances
 // of the model. This method will be used to return an object that only
@@ -76,7 +104,7 @@ blogPostSchema.methods.serialize = function() {
     id: this._id,
     title: this.title,
     content: this.content,
-    author: this.fullName,
+    author: this.author.fullName,
     created: this.created.getTime().toString()
     // the tf solution used the following line
 

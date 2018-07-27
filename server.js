@@ -15,6 +15,152 @@ const { Author, BlogPost } = require("./models");
 const app = express();
 app.use(express.json());
 
+
+/************
+ * AUTHORS
+ ************/
+
+/**
+ * Get all authors, no limit for now, as there are too few to worry about.
+ */
+app.get("/authors", (req, res) => {
+  Author.find()
+  // The next line could be uncommented to limit the number of blogposts returned
+  //    .limit(10)
+  // success callback: for each blogpost we got back, we'll
+  // call the `.serialize` instance method in models.js
+    .then(authors => {
+      res.json({
+        authors: authors.map(author => author.serialize())
+      });
+    })
+    .catch(err => {
+      console.error(err);
+      res.status(500).json({message: "Internal server error"});
+    });
+});
+
+/**
+ * Get info of one author by id
+ */
+app.get("/authors/:id", (req, res) => {
+  Author
+    // this is a convenience method Mongoose provides for searching
+    // by the object _id property
+    .findById(req.params.id)
+    .then(author => res.json(author.serialize()))
+    .catch(err => {
+      console.error(err);
+      res.status(500).json({ message: "Internal server error" });
+    });
+});
+
+
+
+/**
+ * Insert a new author
+ */
+app.post("/authors", (req, res) => {
+  const requiredFields = ["firstName", "lastName",  "userName"];
+  for (let i = 0; i < requiredFields.length; i++) {
+    const field = requiredFields[i];
+    if (!(field in req.body)) {
+      const message = `Missing \`${field}\` in request body`;
+      console.error(message);
+      return res.status(400).send(message);
+    }
+  }
+  // See models.js
+  Author.create({
+    firstName: req.body.firstName,
+    lastName: req.body.lastName,
+    userName: req.body.userName
+  })
+    .then(author => res.status(201).json(author.serialize()))
+    // See blogposts below for a more elegant solution.
+    .catch(err => {
+      // Assume that the err is not a duplicate userName.
+      let myErrMsg = "Internal server error";
+      let myStatus = 500;
+      // Validate that userName is unique
+      if (err.errmsg.indexOf("duplicate key error") > -1) {
+        myErrMsg = `The userName \`${req.body.userName}\` is already used.`;
+        myStatus = 400;
+      }
+      res.status(myStatus).json({ message: myErrMsg });
+    });
+});
+
+/**
+ * Update an author
+ */
+app.put("/authors/:id", (req, res) => {
+  // ensure that the id in the request path and the one in request body match
+  if (!(req.params.id && req.body.id && req.params.id === req.body.id)) {
+    const message =
+      `Request path id (${req.params.id}) and request body id ` +
+      `(${req.body.id}) must match`;
+    console.error(message);
+    return res.status(400).json({ message: message });
+  }
+
+  // we only support a subset of fields being updateable.
+  // if the user sent over any of the updatableFields, we udpate those values
+  // in document
+  const toUpdate = {};
+  const updateableFields = ["firstName", "lastName", "userName"];
+
+  let myMsg = '';
+  updateableFields.forEach(field => {
+    if (field in req.body) {
+      toUpdate[field] = req.body[field];
+    }
+  });
+  Author
+    .findOne({userName: toUpdate.userName || '', _id: {$ne: req.params.id} })
+    .then(author => {
+      if (author) {
+        const message =
+          `The userName \`${req.body.userName}\` is already in use.`;
+        console.error(message);
+        return res.status(400).json({ message: message });
+      }
+      else {
+        Author
+        // all key/value pairs in toUpdate will be updated -- that's what `$set` does
+          .findByIdAndUpdate(req.params.id, { $set: toUpdate })
+          .then(author => res.status(204).end())
+          .catch(err => res.status(500).json({ message: "Internal server error" }));
+      }
+    })
+});
+
+/**
+ * Delete an author
+ */
+app.delete('/authors/:id', (req, res) => {
+  BlogPost
+    .remove({ author: req.params.id })
+    .then(() => {
+      Author
+        .findByIdAndRemove(req.params.id)
+        .then(() => {
+          console.log(`Deleted author with id \`${req.params.id}\` and all their blogposts.`);
+          res.status(204).json({ message: 'success' });
+        });
+    })
+    .catch(err => {
+      console.error(err);
+      res.status(500).json({ error: 'Internal server error' });
+    });
+});
+
+
+/************
+ * BLOGPOSTS
+ ************/
+
+
 /**
  * Get all blogposts, no limit for now, as there are too few to worry about.
  */
@@ -40,10 +186,8 @@ app.get("/posts", (req, res) => {
  */
 app.get("/posts/:id", (req, res) => {
   BlogPost
-    // this is a convenience method Mongoose provides for searching
-    // by the object _id property
     .findById(req.params.id)
-    .then(restaurant => res.json(restaurant.serialize()))
+    .then(blogpost => res.json(blogpost.serialize()))
     .catch(err => {
       console.error(err);
       res.status(500).json({ message: "Internal server error" });
@@ -54,7 +198,7 @@ app.get("/posts/:id", (req, res) => {
  * Insert a new blogpost
  */
 app.post("/posts", (req, res) => {
-  const requiredFields = ["title", "author",  "content"];
+  const requiredFields = ["title", "content", "author_id"];
   for (let i = 0; i < requiredFields.length; i++) {
     const field = requiredFields[i];
     if (!(field in req.body)) {
@@ -62,33 +206,29 @@ app.post("/posts", (req, res) => {
       console.error(message);
       return res.status(400).send(message);
     }
-    else if (field == "author"){
-      const authorFields = ['firstName', 'lastName'];
-      for (let j = 0; j< authorFields.length; j++){
-        const authorField = authorFields[j];
-        if (!(authorField in req.body.author)){
-          const message = `Missing author.\`${authorField}\` in request body`;
-          console.error(message);
-          return res.status(400).send(message);
-        }
-      }
-    }
-
   }
-  // See models.js
-  BlogPost.create({
-    title: req.body.title,
-    author: {
-      firstName: req.body.author.firstName,
-      lastName: req.body.author.lastName,
-    },
-    content: req.body.content
-  })
-    .then(blogpost => res.status(201).json(blogpost.serialize()))
+  Author.findOne({"_id": req.body.author_id})
+    .then(author => {
+      if (author) {
+        // See models.js
+        BlogPost.create({
+          title: req.body.title,
+          author: req.body.author_id,
+          content: req.body.content
+        })
+          .then(
+            blogpost => res.status(201).json(blogpost.serialize()))
+          .catch(err => {
+            const errMsg = `There's no author with the id: ${req.body.author_id}.`;
+            console.log(errMsg);
+            res.status(400).json({message: errMsg});
+          })
+      }
+    })
     .catch(err => {
       console.error(err);
-      res.status(500).json({ message: "Internal server error" });
-    });
+      res.status(500).json({message: "Internal server error"});
+    })
 });
 
 app.put("/posts/:id", (req, res) => {
