@@ -35,10 +35,11 @@ const commentSchema = mongoose.Schema({ content: 'string' });
 const blogPostSchema = mongoose.Schema({
   title: { type: String, required: true },
   content: { type: String, required: true },
-  author: {
+    // author: { type: mongoose.Schema.Types.ObjectId, ref: 'Author' },
+    author: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Author' //,
-    // required: true
+    ref: 'Author',
+    required: true
   },
   comments: [commentSchema],
   // nomgo 4 has an ability to store timestamps, but to keep this compaitible
@@ -104,7 +105,7 @@ blogPostSchema.methods.serialize = function() {
     id: this._id,
     title: this.title,
     content: this.content,
-    author: this.author.fullName,
+    author: this.fullName,
     created: this.created.getTime().toString()
     // the tf solution used the following line
 

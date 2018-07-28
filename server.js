@@ -207,22 +207,34 @@ app.post("/posts", (req, res) => {
       return res.status(400).send(message);
     }
   }
-  Author.findOne({"_id": req.body.author_id})
+  Author
+    .findById(req.body.author_id)
     .then(author => {
       if (author) {
+        console.log("hi again");
         // See models.js
         BlogPost.create({
           title: req.body.title,
-          author: req.body.author_id,
+          author: author._id,
           content: req.body.content
         })
-          .then(
-            blogpost => res.status(201).json(blogpost.serialize()))
+          .then(blogPost => res.status(201).json({
+            id: blogPost.id,
+            author: `${author.firstName} ${author.lastName}`,
+            content: blogPost.content,
+            title: blogPost.title,
+            comments: blogPost.comments
+          })) // .then(
+          //   blogpost => res.status(201).json(blogpost.serialize()))
           .catch(err => {
-            const errMsg = `There's no author with the id: ${req.body.author_id}.`;
+            const errMsg = `Something went wrong.`;
             console.log(errMsg);
-            res.status(400).json({message: errMsg});
+            res.status(500).json({message: errMsg});
           })
+      } else {
+        const errMsg = `There's no author with the id: ${req.body.author_id}.`;
+        console.log(errMsg);
+        res.status(400).json({message: errMsg});
       }
     })
     .catch(err => {
@@ -231,6 +243,9 @@ app.post("/posts", (req, res) => {
     })
 });
 
+/**
+ * Edit a blogpost
+ */
 app.put("/posts/:id", (req, res) => {
   // ensure that the id in the request path and the one in request body match
   if (!(req.params.id && req.body.id && req.params.id === req.body.id)) {
@@ -245,35 +260,33 @@ app.put("/posts/:id", (req, res) => {
   // if the user sent over any of the updatableFields, we udpate those values
   // in document
   const toUpdate = {};
-  const updateableFields = ["title", "author", "content"];
+  const updateableFields = ["title", "content"];
 
   updateableFields.forEach(field => {
     if (field in req.body) {
       // assume the field to be set is not part of author
-      let myField = field;
-      if (field == "author"){
-        const authorFields = ['firstName', 'lastName'];
-        authorFields.forEach(authorField => {
-          if (authorField in req.body.author){
-            // Set the field for names to update in the author object
-            myField = "author." + authorField;
-            toUpdate[myField] = req.body.author[authorField];
-          }
-        })
-      }
-      else {
-        toUpdate[myField] = req.body[field];
-      }
+      toUpdate[field] = req.body[field];
     }
   });
 
   BlogPost
     // all key/value pairs in toUpdate will be updated -- that's what `$set` does
-    .findByIdAndUpdate(req.params.id, { $set: toUpdate })
-    .then(blogpost => res.status(204).end())
+    // NOTE: the new: true is needed to refreash the result returned.
+    .findByIdAndUpdate(req.params.id, { $set: toUpdate }, { new: true })
+    .populate('author')
+    .then(updatedPost => res.status(200).json({
+      id: updatedPost.id,
+      title: updatedPost.title,
+      content: updatedPost.content,
+      author: updatedPost.fullName
+    }))
     .catch(err => res.status(500).json({ message: "Internal server error" }));
 });
 
+
+/**
+ * Delete a blogpost
+ */
 app.delete("/posts/:id", (req, res) => {
   BlogPost.findByIdAndRemove(req.params.id)
     .then(blogpost => res.status(204).end())
