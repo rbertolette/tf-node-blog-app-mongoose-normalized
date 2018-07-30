@@ -127,9 +127,15 @@ app.put("/authors/:id", (req, res) => {
       }
       else {
         Author
-        // all key/value pairs in toUpdate will be updated -- that's what `$set` does
-          .findByIdAndUpdate(req.params.id, { $set: toUpdate })
-          .then(author => res.status(204).end())
+          // NOTE: the new: true is needed to refreash the result returned.
+          .findByIdAndUpdate(req.params.id, { $set: toUpdate }, { new: true })
+          .then(author => res.status(200).json(
+            {
+              id: author._id,
+              name: author.fullName,
+              userName: author.userName
+            }
+          ))
           .catch(err => res.status(500).json({ message: "Internal server error" }));
       }
     })
@@ -187,7 +193,15 @@ app.get("/posts", (req, res) => {
 app.get("/posts/:id", (req, res) => {
   BlogPost
     .findById(req.params.id)
-    .then(blogpost => res.json(blogpost.serialize()))
+    .then(post => {
+      res.json({
+        id: post._id,
+        author: post.fullName,
+        content: post.content,
+        title: post.title,
+        comments: post.comments
+      });
+    })
     .catch(err => {
       console.error(err);
       res.status(500).json({ message: "Internal server error" });
@@ -211,7 +225,6 @@ app.post("/posts", (req, res) => {
     .findById(req.body.author_id)
     .then(author => {
       if (author) {
-        console.log("hi again");
         // See models.js
         BlogPost.create({
           title: req.body.title,
@@ -278,7 +291,17 @@ app.put("/posts/:id", (req, res) => {
       id: updatedPost.id,
       title: updatedPost.title,
       content: updatedPost.content,
-      author: updatedPost.fullName
+      author: updatedPost.fullName,
+      created: updatedPost.created.getTime().toString()
+      // the tf solution used the following line
+
+      // created: this.created
+
+      // which results in something like:
+      // "2018-07-22T00:15:53.723Z" instead of the instructions:
+      // "1532218553723"
+      // the line I used get the desired results.
+
     }))
     .catch(err => res.status(500).json({ message: "Internal server error" }));
 });
